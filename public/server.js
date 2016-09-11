@@ -1,152 +1,144 @@
 "use strict";
 
-/**
- * User sessions
- * @param {array} users
- */
-var users = [];
+var socket,
+	players = [];
 
-/**
- * Find opponent for a user
- * @param {User} user
- */
-function findOpponent(user) {
-	for (var i = 0; i < users.length; i++) {
-		if (
-			user !== users[i] && 
-			users[i].opponent === null
-		) {
-			new Game(user, users[i]).start();
-		}
+var Player = function(nickname, startX, startY, type) {
+	var nick = nickname,
+		x = startX,
+		y = startY,
+		angle = 5,
+		shipType = type,
+		id;
+	var getX = function() {
+		return x;
+	};
+	var getY = function() {
+		return y;
+	};
+	var getAngle = function() {
+		return angle;
+	};
+	var getType = function() {
+		return shipType;
+	};
+	var getNick = function() {
+		return nick;
+	};
+	var setX = function(newX) {
+		x = newX;
+	};
+	var setY = function(newY) {
+		y = newY;
+	};
+	var setAngle = function(newAngle) {
+		angle = newAngle;
+	};
+	var setType = function(newType) {
+		shipType = newType;
+	};
+	return {
+		getX: getX,
+		getY: getY,
+		getAngle: getAngle,
+		getType: getType,
+		getNick: getNick,
+		setX: setX,
+		setY: setY,
+		setAngle: setAngle,
+		setType: setType,
+		id: id
 	}
-}
-
-/**
- * Remove user session
- * @param {User} user
- */
-function removeUser(user) {
-	users.splice(users.indexOf(user), 1);
-}
-
-/**
- * Game class
- * @param {User} user1
- * @param {User} user2
- */
-function Game(user1, user2) {
-	this.user1 = user1;
-	this.user2 = user2;
-}
-
-/**
- * Start new game
- */
-Game.prototype.start = function () {
-	this.user1.start(this, this.user2);
-	this.user2.start(this, this.user1);
-}
-
-/**
- * Is game ended
- * @return {boolean}
- */
-Game.prototype.ended = function () {
-	return this.user1.guess !== GUESS_NO && this.user2.guess !== GUESS_NO;
-}
-
-/**
- * Final score
- */
-Game.prototype.score = function () {
-	if (
-		this.user1.guess === GUESS_ROCK && this.user2.guess === GUESS_SCISSORS ||
-		this.user1.guess === GUESS_PAPER && this.user2.guess === GUESS_ROCK ||
-		this.user1.guess === GUESS_SCISSORS && this.user2.guess === GUESS_PAPER
-	) {
-		this.user1.win();
-		this.user2.lose();
-	} else if (
-		this.user2.guess === GUESS_ROCK && this.user1.guess === GUESS_SCISSORS ||
-		this.user2.guess === GUESS_PAPER && this.user1.guess === GUESS_ROCK ||
-		this.user2.guess === GUESS_SCISSORS && this.user1.guess === GUESS_PAPER
-	) {
-		this.user2.win();
-		this.user1.lose();
-	} else {
-		this.user1.draw();
-		this.user2.draw();
-	}
-}
-
-/**
- * User session class
- * @param {Socket} socket
- */
-function User(socket) {
-	this.socket = socket;
-	this.game = null;
-	this.opponent = null;
-	this.guess = GUESS_NO;
-}
-
-/**
- * Set guess value
- * @param {number} guess
- */
-User.prototype.setGuess = function (guess) {
-	if (
-		!this.opponent ||
-		guess <= GUESS_NO ||
-		guess > GUESS_SCISSORS
-	) {
-		return false;
-	}
-	this.guess = guess;
-	return true;
 };
 
-/**
- * Start new game
- * @param {Game} game
- * @param {User} opponent
- */
-User.prototype.start = function (game, opponent) {
-	this.game = game;
-	this.opponent = opponent;
-	this.guess = GUESS_NO;
-	this.socket.emit("start");		
+// Socket client has disconnected
+function onClientDisconnect() {
+	console.log("Player has disconnected: "+this.id);
+
+	var removePlayer = playerById(this.id);
+
+	// Player not found
+	if (!removePlayer) {
+		console.log("Player not found: "+this.id);
+		return;
+	};
+
+	// Remove player from players array
+	players.splice(players.indexOf(removePlayer), 1);
+
+	// Broadcast removed player to connected socket clients
+	this.broadcast.emit("remove player", {id: this.id});
 };
 
-/**
- * Terminate game
- */
-User.prototype.end = function () {
-	this.game = null;
-	this.opponent = null;
-	this.guess = GUESS_NO;
-	this.socket.emit("end");
+// New player has joined
+function onNewPlayer(data) {
+
+	var shiptype = Math.floor(Math.random() * 9) + 0 ;
+	// Create a new player
+	var newPlayer = new Player(data.nick, data.x, data.y, data.type);
+	newPlayer.id = this.id;
+
+	// Broadcast new player to connected socket clients
+	this.broadcast.emit("new player", {nick: data.nick, id: newPlayer.id, x: newPlayer.getX(), y: newPlayer.getY(), angle: newPlayer.getAngle(), type: newPlayer.getType()});
+
+	// Send existing players to the new player
+	var i, existingPlayer;
+	for (i = 0; i < players.length; i++) {
+		existingPlayer = players[i];
+		this.emit("new player", {nick: existingPlayer.getNick(), id: existingPlayer.id, x: existingPlayer.getX(), y: existingPlayer.getY(), angle: existingPlayer.getAngle(), type: existingPlayer.getType()});
+	};
+		
+	// Add new player to the players array
+	players.push(newPlayer);
 };
 
-/**
- * Trigger win event
- */
-User.prototype.win = function () {
-	this.socket.emit("win", this.opponent.guess);
+// Player has moved
+function onMovePlayer(data) {
+	// Find player in array
+	var movePlayer = playerById(this.id);
+
+	// Player not found
+	if (!movePlayer) {
+		console.log("Player not found: "+this.id);
+		return;
+	};
+
+	// Update player position
+	movePlayer.setX(data.x);
+	movePlayer.setY(data.y);
+	movePlayer.setAngle(data.angle);
+	movePlayer.setType(data.type);
+	// Broadcast updated position to connected socket clients
+	this.broadcast.emit("move player", {id: movePlayer.id, x: movePlayer.getX(), y: movePlayer.getY(), angle: movePlayer.getAngle(), type: movePlayer.getType(), isFiring: data.isFiring});
 };
 
-/**
- * Trigger lose event
- */
-User.prototype.lose = function () {
-	this.socket.emit("lose", this.opponent.guess);
+// Player has rejoined
+function onRejoin(data) {
+	// Find player in array
+	var rejoinedPlayer = playerById(this.id);
+
+	// Player not found
+	if (!rejoinedPlayer) {
+		console.log("Player not found: "+this.id);
+		return;
+	};
+
+	// Broadcast updated position to connected socket clients
+	this.broadcast.emit("rejoin", {id: rejoinedPlayer.id});
 };
 
-/**
- * Trigger draw event
- */
-User.prototype.draw = function () {
-	this.socket.emit("draw", this.opponent.guess);
+/**************************************************
+** GAME HELPER FUNCTIONS
+**************************************************/
+// Find player by ID
+function playerById(id) {
+	var i;
+	for (i = 0; i < players.length; i++) {
+		if (players[i].id == id)
+			return players[i];
+	};
+	
+	return false;
 };
 
 /**
@@ -154,26 +146,18 @@ User.prototype.draw = function () {
  * @param {Socket} socket
  */
 module.exports = function (socket) {
-	var user = new User(socket);
-	users.push(user);
-	findOpponent(user);
-	
-	socket.on("disconnect", function () {
-		console.log("Disconnected: " + socket.id);
-		removeUser(user);
-		if (user.opponent) {
-			user.opponent.end();
-			findOpponent(user.opponent);
-		}
-	});
 
-	socket.on("guess", function (guess) {
-		console.log("Guess: " + socket.id);
-		if (user.setGuess(guess) && user.game.ended()) {
-			user.game.score();
-			user.game.start();
-		}
-	});
+	console.log("New player has connected: "+socket.id);
 
-	console.log("Connected: " + socket.id);
+	// Listen for client disconnected
+	socket.on("disconnect", onClientDisconnect);
+
+	// Listen for new player message
+	socket.on("new player", onNewPlayer);
+
+	// Listen for move player message
+	socket.on("move player", onMovePlayer);
+
+	// Listen for player rejoin message
+	socket.on("rejoin", onRejoin);
 };

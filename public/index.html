@@ -1,24 +1,96 @@
 <!DOCTYPE html>
+
 <html lang="en">
-<head>
-<title>Rock, Paper, Scissors</title>
-<meta charset="UTF-8">
-</head>
-<body>
 
-<div style="text-align:center">
-    <h1 id="message"></h1>
-    <div>
-        <button>Rock</button>
-        <button>Paper</button>
-        <button>Scissors</button>
-    </div>
-    <div id="score"></div>
-</div>
+	<head>
+		<meta content='width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0' name='viewport' />
 
-<script src="/socket.io/socket.io.js"></script>
-<script src="/shared.js"></script>
-<script src="/client.js"></script>
+		<title>cosmic shooters</title>
+		<meta charset="utf-8">
+		
+		<link rel="stylesheet" href="game.css">
+		<script type="text/javascript">
+			// shim layer with setTimeout fallback
+			window.requestAnimFrame = (function(){
+			  return  window.requestAnimationFrame       || 
+			          window.webkitRequestAnimationFrame || 
+			          window.mozRequestAnimationFrame    || 
+			          window.oRequestAnimationFrame      || 
+			          window.msRequestAnimationFrame     || 
+			          function(callback, element){
+			            window.setTimeout(callback, 1000 / 60);
+			          };
+			})();			
+		</script>
+	</head>
+	
+	<body>
 
-</body>
+		<script src="/socket.io/socket.io.js"></script>c
+		<script type="text/javascript" src="quadtree.js"></script>
+		<script type="text/javascript" src="Map.js"></script>
+		<script type="text/javascript" src="camera.js"></script>
+		<script type="text/javascript" src="Keys.js"></script>
+		<script type="text/javascript" src="Player.js"></script>
+		<script type="text/javascript" src="game.js"></script>
+
+		<div class="container" id="container">
+			<div class="inner-container">
+				<div class="heading">Cosmic Shooters</div>
+				<div class="foo"></div>
+				<div class="title">Nickname</div>
+				<input type="text" id="nickname"></input>
+				<div class="title">Battleship</div>
+				<div class="currentship">
+					<a href="#"><img id="current-ship" src="images/J.png"/></a>
+				</div>
+				<div id="ships">
+					<img id="0" class="ship" src="images/A.png"/>
+					<img id="1" class="ship" src="images/B.png"/>
+					<img id="2" class="ship" src="images/C.png"/>
+					<img id="3" class="ship" src="images/D.png"/>
+					<img id="4" class="ship" src="images/E.png"/>
+					<img id="5" class="ship" src="images/F.png"/>
+					<img id="6" class="ship" src="images/G.png"/>
+					<img id="7" class="ship" src="images/H.png"/>
+					<img id="8" class="ship" src="images/I.png"/>
+					<img id="9" class="ship current" src="images/J.png"/>
+				</div>
+				<div>Click/Tap to choose..</div>
+				<button class="play" id="play">Play</button>
+			</div>
+		</div>
+		<canvas id="gameCanvas" style="display:none"></canvas>			
+
+		<script type="text/javascript">
+			var nickname= ""
+			var ship = 9;
+			var ele = document.getElementById('ships');
+			var elems = document.querySelectorAll(".ship");
+
+			ele.addEventListener('click',function(event){
+				if(event.target!=ele){
+					[].forEach.call(elems, function(el) {
+					    el.classList.remove("current");
+					});
+					event.target.classList.add('current');
+					ship = event.target.id;
+					document.getElementById('current-ship').src= event.target.src;			
+				}
+			})
+
+			document.getElementById('play').addEventListener('click',function(){
+				nickname = document.getElementById('nickname').value;
+				if(ship && nickname){
+					document.getElementById('container').style.display = 'none';
+					document.getElementById('gameCanvas').style.display = 'block';
+					// Initialise the game
+					init(nickname,ship);
+					animate();
+				}
+				else
+					alert('Please Choose a Nickname and Battleship')
+			})
+		</script>
+	</body>
 </html>
